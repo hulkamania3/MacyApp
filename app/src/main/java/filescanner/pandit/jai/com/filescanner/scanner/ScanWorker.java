@@ -198,7 +198,7 @@ public class ScanWorker implements Runnable {
             } else {
                 String filename = list[i].getName();
                 File f = new File(filename);
-                long bytes2 = list[i].length();
+                long bytes2 = list[i].length();;
                 long bytes = f.length();
                 if (bytes != bytes2) {
                     Log.e(TAG, "ERRORRR");
