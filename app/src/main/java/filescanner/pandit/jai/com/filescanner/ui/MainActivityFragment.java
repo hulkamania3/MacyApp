@@ -4,6 +4,7 @@ import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.ServiceConnection;
+import android.os.Build;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.Looper;
@@ -12,8 +13,13 @@ import android.os.Messenger;
 import android.os.RemoteException;
 import android.support.v4.app.Fragment;
 import android.os.Bundle;
+import android.support.v4.view.MenuItemCompat;
+import android.support.v7.widget.ShareActionProvider;
 import android.util.Log;
 import android.view.LayoutInflater;
+import android.view.Menu;
+import android.view.MenuInflater;
+import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.Button;
@@ -21,6 +27,9 @@ import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import java.io.File;
+
+import filescanner.pandit.jai.com.filescanner.ScanResult;
 import filescanner.pandit.jai.com.filescanner.scanner.IFileScanner;
 import filescanner.pandit.jai.com.filescanner.R;
 import filescanner.pandit.jai.com.filescanner.scanner.ScannerService;
@@ -36,9 +45,7 @@ public class MainActivityFragment extends Fragment{
 
     private Button mButton;
     private ProgressBar mProgress;
-    private TextView mTvBiggestSize;
-    private TextView mTvAvgSize;
-    private TextView mTvFreqFiles;
+    private TextView mTvResult;
 
     // Remote objects.
     private Messenger mScannerServiceMessenger;
@@ -61,6 +68,9 @@ public class MainActivityFragment extends Fragment{
         super.onCreate(savedInstanceState);
         setRetainInstance(true);
         mLocalMessenger = new Messenger(mCallback);
+        if(!mIsConnected){
+            connectService(true);
+        }
     }
 
     private Handler mCallback = new Handler(Looper.getMainLooper()){
@@ -95,11 +105,45 @@ public class MainActivityFragment extends Fragment{
                     break;
                 case SCAN_RESULTS:
                     Log.i(TAG, "Callback: Scan results!!");
+                    onScanResultsFetched((ScanResult) msg.obj);
                     break;
             }
 
         }
     };
+
+    private void onScanResultsFetched(ScanResult results){
+        String deflatedResult = populateResults(results);
+        if(deflatedResult == null){
+            mTvResult.setText("");
+        }else{
+            mTvResult .setText(deflatedResult);
+            setShareIntent(deflatedResult);
+        }
+        if(mShare != null){
+            mShare.setEnabled(deflatedResult == null ? false: true);
+        }
+    }
+
+    private String populateResults(ScanResult result){
+        if(result == null){
+            return null;
+        }
+        StringBuilder sb = new StringBuilder();
+        sb.append("Avg File Size(bytes): " +String.valueOf(result.mAvgFileSize) + "\n");
+
+        sb.append("\nBiggest files: \n");
+        for(ScanResult.FileObj file: result.mBiggestFiles){
+            sb.append("Path: " + file.PATH + "\n");
+            sb.append("Size: " + file.SIZE + "\n\n");
+        }
+        sb.append("\nFreq file ext: \n");
+        for(ScanResult.FileObj file: result.mMostFreqFiles){
+            sb.append("Ext: " + file.PATH + "\n");
+            sb.append("Freq: " + file.SIZE + "\n\n");
+        }
+        return sb.toString();
+    }
 
     @Override
     public View onCreateView(LayoutInflater inflater, ViewGroup container,
@@ -107,9 +151,7 @@ public class MainActivityFragment extends Fragment{
         View root = inflater.inflate(R.layout.fragment_main, container, false);
         mButton = (Button)root.findViewById(R.id.btn_scan);
         mProgress = (ProgressBar)root.findViewById(R.id.progress_scan);
-        mTvAvgSize = (TextView)root.findViewById(R.id.tv_avgSize);
-        mTvBiggestSize = (TextView)root.findViewById(R.id.tv_biggestFiles);
-        mTvFreqFiles = (TextView)root.findViewById(R.id.tv_freqFiles);
+        mTvResult = (TextView)root.findViewById(R.id.tv_result);
         mProgress.setMax(20);
         mButton.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -125,6 +167,7 @@ public class MainActivityFragment extends Fragment{
                 Intent intent = new Intent(getActivity(), ScannerService.class);
                 switch (mState) {
                     case IDLE:
+                        onScanResultsFetched(null);
                         intent.setAction(INTENT_ACTIONS.START_SCANNING);
                         break;
                     case SCANNING:
@@ -136,32 +179,58 @@ public class MainActivityFragment extends Fragment{
                 getActivity().startService(intent);
             }
         });
+        setHasOptionsMenu(true);
 
         return root;
+    }
+
+    private ShareActionProvider mShareActionProvider;
+    private MenuItem mShare;
+
+    @Override
+    public void onCreateOptionsMenu(Menu menu, MenuInflater inflater) {
+        // Inflate the menu; this adds items to the action bar if it is present.
+        inflater.inflate(R.menu.menu_main, menu);
+
+        // Locate MenuItem with ShareActionProvider
+        mShare = menu.findItem(R.id.menu_item_share);
+        updateState();
+
+        // Fetch and store ShareActionProvider
+        mShareActionProvider = (ShareActionProvider) MenuItemCompat.getActionProvider(mShare);
+
+        super.onCreateOptionsMenu(menu,inflater);
+    }
+
+    private void setShareIntent(String text){
+        if(text == null){
+            return;
+        }
+        Intent shareIntent = new Intent();
+        shareIntent.setAction(Intent.ACTION_SEND);
+        shareIntent.putExtra(Intent.EXTRA_TEXT, text);
+        shareIntent.setType("text/plain");
+        if(mShareActionProvider != null){
+            mShareActionProvider.setShareIntent(shareIntent);
+        }
     }
 
     @Override
     public void onResume() {
         super.onResume();
+        updateState();
 
     }
 
     @Override
-    public void onStart() {
-        super.onStart();
-        if(!mIsConnected){
-            connectService(true);
-        }
-    }
-
-    @Override
-    public void onStop() {
-        super.onStop();
+    public void onDestroy() {
+        super.onDestroy();
         if(mIsConnected){
             connectService(false);
             mIsConnected = false;
         }
     }
+
 
     private boolean checkBinding(){
         if(!mIsConnected && mScanner == null){
@@ -190,8 +259,11 @@ public class MainActivityFragment extends Fragment{
                     mButton.setText("Start");
                     mProgress.setEnabled(false);
                     mProgress.setProgress(0);
+                    // try to load results.
+                    onScanResultsFetched(mScanner.getLastScanResults());
                     break;
             }
+
         }
     }
 

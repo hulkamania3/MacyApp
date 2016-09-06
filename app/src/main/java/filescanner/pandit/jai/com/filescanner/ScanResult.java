@@ -4,20 +4,30 @@ import android.os.Parcel;
 import android.os.Parcelable;
 
 import java.io.File;
+import java.util.List;
 
 /**
  * Created by Jai on 9/2/2016.
  */
 public final class ScanResult{
 
-    public final FileObj[] mBiggestFiles;
-    public final int mAvgFileSize;
-    public final FileObj[] mMostFreqFiles;
+    public final List<FileObj> mBiggestFiles;
+    public final long mAvgFileSize;
+    public final List<FileObj> mMostFreqFiles;
 
-    public ScanResult(FileObj[] mBiggestFiles, int mAvgFileSize, FileObj[] mMostFreqFiles) {
+    public ScanResult(List<FileObj> mBiggestFiles, List<FileObj> mMostFreqFiles) {
         this.mBiggestFiles = mBiggestFiles;
-        this.mAvgFileSize = mAvgFileSize;
+        this.mAvgFileSize = getAvgFileSize();
         this.mMostFreqFiles = mMostFreqFiles;
+    }
+
+    private long getAvgFileSize(){
+        long total = 0;
+        for(int i=0;i<mBiggestFiles.size();i++){
+            total += mBiggestFiles.get(i).SIZE;
+        }
+        total = total/mBiggestFiles.size();
+        return total;
     }
 
     /**

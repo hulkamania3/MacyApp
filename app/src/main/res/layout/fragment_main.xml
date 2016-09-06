@@ -39,18 +39,7 @@
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:id="@+id/tv_avgSize"
-                android:text="Hello World!" />
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:id="@+id/tv_biggestFiles"
-                android:text="Hello World!" />
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:id="@+id/tv_freqFiles"
-                android:text="Hello World!" />
+                android:id="@+id/tv_result"/>
             </LinearLayout>
         </ScrollView>
 

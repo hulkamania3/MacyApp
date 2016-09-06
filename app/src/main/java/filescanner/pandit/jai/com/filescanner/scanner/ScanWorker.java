@@ -6,10 +6,13 @@ import android.util.Log;
 
 import java.io.File;
 import java.lang.ref.WeakReference;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.List;
 import java.util.PriorityQueue;
 
+import filescanner.pandit.jai.com.filescanner.ScanResult.FileObj;
 import filescanner.pandit.jai.com.filescanner.ScanResult;
 
 /**
@@ -70,10 +73,12 @@ public class ScanWorker implements Runnable {
      * Calculate total memory available in MB
      * @return size in MB
      */
-    private long size() {
+    private int size() {
         StatFs stat = new StatFs(Environment.getExternalStorageDirectory().getPath());
         long bytesAvailable = (long) stat.getBlockSize() * (long) stat.getAvailableBlocks();
-        long megAvailable = bytesAvailable / (1024 * 1024);
+        /*long megs = (bytesAvailable / (1024 * 1024));
+        Log.i(TAG, "Total Megs: " + megs);*/
+        int megAvailable = (int)(bytesAvailable / (1024 * 1024));
         Log.e("", "Available MB : " + megAvailable);
         return megAvailable;
     }
@@ -107,19 +112,23 @@ public class ScanWorker implements Runnable {
 
     @Override
     public void run() {
-        runTest();
+        //runTest();
 
-        /*totalSize = size();
-        setMaxProgress((int) totalSize);
+        totalSize = size();
+        setMaxProgress(totalSize);
         Log.d(TAG, "Thread started");
         ScanResult results = null;
         try {
             results = startScanning();
         } catch (Exception e) {
             e.printStackTrace();
+            onScanCompleted(true);
+            return;
         }
-        setScanResult(results);
-        onScanCompleted();*/
+        if(results != null){
+            setScanResult(results);
+        }
+        onScanCompleted(false);
     }
 
     public ScanResult startScanning() throws InterruptedException{
@@ -141,11 +150,11 @@ public class ScanWorker implements Runnable {
                 throw new InterruptedException();
             }
 
-            ScanResult.FileObj[] biggestFiles = new ScanResult.FileObj[10];
-            for(int i=0;i<10;i++){
+            List<FileObj> biggestFiles = new ArrayList<FileObj>();
+            while (!minHeap.isEmpty()){
                 ScanResult.FileObj fff = minHeap.poll();
                 Log.d(TAG, " Final file size " + fff.PATH + " " + fff.SIZE);
-                biggestFiles[i] = fff;
+                biggestFiles.add(fff);
             }
 
             //Most Frequent file Extensions
@@ -162,21 +171,21 @@ public class ScanWorker implements Runnable {
                 }
             }
 
-            ScanResult.FileObj[] freqUsed = new ScanResult.FileObj[10];
-            for(int i=0;i<10;i++){
+            List<FileObj> freqUsed = new ArrayList<FileObj>();
+            while(!fileExt.isEmpty()){
                 ScanResult.FileObj fff = fileExt.poll();
-                freqUsed[i] = fff;
+                freqUsed.add(fff);
                 Log.d(TAG, " Extenstion to frequencey " + fff.PATH + " " + fff.SIZE);
             }
-
-            return new ScanResult(biggestFiles, 5, freqUsed);
+            return new ScanResult(biggestFiles, freqUsed);
         }
         return null;
     }
 
     private File file;
-    private long sizeSoFar;
-    private long totalSize;
+    private int sizeSoFar;
+    private int totalSize;
+    private int progressSoFar = 0;
 
     /**
      * Scans a directory.
@@ -197,19 +206,28 @@ public class ScanWorker implements Runnable {
                 scanDirectory(path + "/" + list[i].getName());
             } else {
                 String filename = list[i].getName();
-                File f = new File(filename);
-                long bytes2 = list[i].length();
-                long bytes = f.length();
-                if (bytes != bytes2) {
-                    Log.e(TAG, "ERRORRR");
-                }
-                long kb = bytes / 1024;
-                long mb = kb / 1024;
-                sizeSoFar += mb;
+                long bytes = list[i].length();
+                if(bytes == 0)return;
+                float kb = bytes / 1024;
+                float mb = kb / 1024;
+
+                /*long file_size = file.length();
+                float file_size_kb = file_size/1024;
+                float file_size_mb = file_size_kb/1024;*/
+                int file_size = Integer.parseInt(String.valueOf(file.length()));
+                file_size = file_size / 1024*1024;
+                sizeSoFar += file_size;
+                //sizeSoFar += mb;
 
                 // dispatch UI.
-                int progress = (int)((sizeSoFar / totalSize) * 100);
-                setCurrentProgress(progress);
+                int progress = ((sizeSoFar / totalSize) * 100);
+                Log.i(TAG, "Progress: " + progress);
+
+                if((progress) != progressSoFar){
+                    progressSoFar = progress;
+                    setCurrentProgress(progressSoFar);
+                }
+
                 Log.d(TAG, "file:" + list[i].getAbsolutePath() + " " + mb);
 
                 if (minHeap.size() < 10) {

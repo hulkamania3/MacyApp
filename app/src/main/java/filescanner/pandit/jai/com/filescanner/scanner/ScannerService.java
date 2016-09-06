@@ -236,6 +236,11 @@ public final class ScannerService extends Service implements IFileScanner {
         return mMaxProgress;
     }
 
+    @Override
+    synchronized public ScanResult getLastScanResults() {
+        return mLastScanResult;
+    }
+
     /**
      * Starts the service in foreground mode.
      */
